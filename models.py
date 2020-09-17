@@ -1,11 +1,12 @@
 from datetime import date
 from datetime import datetime
-from pony.orm import *
+from pony.orm import Database, Required, Optional
 
 
 db = Database()
 
-db.bind(provider='sqlite', filename='heatcalc.sqlite', create_db=True)
+db.bind(provider="sqlite", filename="heatcalc.sqlite", create_db=True)
+
 
 class Material(db.Entity):
     name = Required(str, unique=True)
