@@ -14,6 +14,8 @@
 
 import csv
 from typing import Dict, List
+
+from click.exceptions import FileError
 from models import Material
 from pony.orm import db_session
 import numpy as np
@@ -95,15 +97,54 @@ def update_database(input_data):  # type: (List[Dict]) -> None
         # które są mniejsze niż max_temp (patrz linia 79 oraz 85)
 
         for temp in missing_temps:
-            value = ..... # <- tutaj formułka wyliczająca
+            # value = ..... # <- tutaj formułka wyliczająca
             setattr(db_obj, f"coeff_{temp}", value)
         # koniec :)
 
 
-def read_csv():
+def read_csv(file_name):
     pass
 
 
-def read_excel():
+def read_excel(file_name):
     "xls / xlsx"
     pass
+
+
+# CLICK interface
+# https://click.palletsprojects.com/en/7.x/commands/
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def example():
+    """
+    Tworzy przykładowy plik
+    """
+    create_example_input_file()
+    print("Utworzono plik example.csv")
+
+@cli.commnd()
+def import(file_name):  # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
+    """
+    Importuje dane z pliku do bazy
+    """
+
+    # rozpoznanie formatu
+    if file_name.endswith(".csv"):
+        importer = read_csv
+    elif file_name.endswith(".xlsx"):
+        importer = read_excel
+    else:
+        raise FileError("Nieprawidłowy format pliku")
+
+    dane = importer(file_name)
+    update_database(data)
+
+
+if __name__ == "__main__":
+    cli()
