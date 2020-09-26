@@ -21,6 +21,7 @@ class main_window(QMainWindow):
         loader.load(ui_file, self)
         ui_file.close()
 
+
 if __name__ == "__main__":
     app = QApplication([])
     widget = main_window()
