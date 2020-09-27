@@ -1,6 +1,9 @@
 from datetime import date
 from datetime import datetime
 from pony.orm import *
+import xlrd
+import csv
+#import csv_to_sqlite
 
 db = Database()
 
@@ -27,9 +30,7 @@ class Material(db.Entity):
 db.generate_mapping(create_tables=True)
 
 # ---------------------------------------------IMPORT DATA FROM XLSX TO CSV---------------------------------------------
-import xlrd
-import csv
-import csv_to_sqlite
+
 
 
 def csv_from_excel():

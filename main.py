@@ -21,6 +21,10 @@ from pony.orm import db_session
 import numpy as np
 import click
 
+import csv
+import pandas as pd
+
+
 headers = [
     "name",
     "max_temp",
@@ -73,6 +77,7 @@ def update_database(input_data):  # type: (List[Dict]) -> None
         else:
             db_obj = Material(**entry)
 
+
         # tutaj możemy operować na db_obj, żeby wyliczyć współczynniki
         # kod napisany na jednym z poprzednich spotkań:
         x = []
@@ -97,19 +102,20 @@ def update_database(input_data):  # type: (List[Dict]) -> None
         # które są mniejsze niż max_temp (patrz linia 79 oraz 85)
 
         for temp in missing_temps:
-            # value = ..... # <- tutaj formułka wyliczająca
+            value = (db_obj.coeff_a * temp**2) +  (db_obj.coeff_b*temp) + db_obj.coeff_c
             setattr(db_obj, f"coeff_{temp}", value)
         # koniec :)
 
 
 def read_csv(file_name):
-    pass
-
+    " csv "
+    f = open(file_name.csv, 'rb')
+    dane = csv.reader(f)
 
 def read_excel(file_name):
     "xls / xlsx"
-    pass
-
+    #data = pd.ExcelFile(file_name)
+    dane = pd.read_excel(file_name, sheet_name=None)
 
 # CLICK interface
 # https://click.palletsprojects.com/en/7.x/commands/
@@ -128,11 +134,13 @@ def example():
     create_example_input_file()
     print("Utworzono plik example.csv")
 
-@cli.commnd()
-def import(file_name):  # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
+@cli.command()
+
+def import_file(file_name): # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
     """
     Importuje dane z pliku do bazy
     """
+    file_name = input()
 
     # rozpoznanie formatu
     if file_name.endswith(".csv"):
