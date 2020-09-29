@@ -68,6 +68,28 @@ def create_example_input_file():
 
 @db_session
 def update_database(input_data):  # type: (List[Dict]) -> None
+    """
+    Format danych przyjmowanych przez tę funkcję:
+    [
+        {
+            "name": "Nazwa materiału",
+            "max_temp": 1200,
+            "price": 15.0,
+            "coeff_200": 3.4,
+            "coeff_400": 3.6,
+            "coeff_600": 3.6,
+            "coeff_800": 3.6,
+            "coeff_1000": 3.4,
+            "coeff_1200": None,
+            "coeff_1400": None,
+            "coeff_1600": None,
+        },
+        {...}
+
+    ]
+
+    """
+
     for entry in input_data:
         name = entry["name"]
         # zabezpieczyć przed brakiem elementu
@@ -76,7 +98,6 @@ def update_database(input_data):  # type: (List[Dict]) -> None
             db_obj.set(**entry)
         else:
             db_obj = Material(**entry)
-
 
         # tutaj możemy operować na db_obj, żeby wyliczyć współczynniki
         # kod napisany na jednym z poprzednich spotkań:
@@ -102,20 +123,29 @@ def update_database(input_data):  # type: (List[Dict]) -> None
         # które są mniejsze niż max_temp (patrz linia 79 oraz 85)
 
         for temp in missing_temps:
-            value = (db_obj.coeff_a * temp**2) +  (db_obj.coeff_b*temp) + db_obj.coeff_c
+            value = (
+                (db_obj.coeff_a * temp ** 2) + (db_obj.coeff_b * temp) + db_obj.coeff_c
+            )
             setattr(db_obj, f"coeff_{temp}", value)
         # koniec :)
 
 
 def read_csv(file_name):
-    " csv "
-    f = open(file_name.csv, 'rb')
-    dane = csv.reader(f)
+    """
+    Musi zwrócić dane w formacie akceptowanym przez funkcję `update_database`.
+    Nie musi zwracać listy, może zwracać iterator.
+    """
+    with open(file_name.csv, "rb") as f:
+        return csv.DictReader(f, fieldnames=headers)
+
 
 def read_excel(file_name):
     "xls / xlsx"
-    #data = pd.ExcelFile(file_name)
-    dane = pd.read_excel(file_name, sheet_name=None)
+    data = pd.read_excel(file_name, names=headers)
+    return (
+        dict(zip(data.columns, r)) for r in data.where(pd.notnull(data), None).values
+    )
+
 
 # CLICK interface
 # https://click.palletsprojects.com/en/7.x/commands/
@@ -134,13 +164,16 @@ def example():
     create_example_input_file()
     print("Utworzono plik example.csv")
 
-@cli.command()
 
-def import_file(file_name): # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
+@cli.command()
+@click.argument("file_name")
+def import_file(
+    file_name,
+):  # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
     """
     Importuje dane z pliku do bazy
     """
-    file_name = input()
+    # file_name = input()
 
     # rozpoznanie formatu
     if file_name.endswith(".csv"):
@@ -150,7 +183,7 @@ def import_file(file_name): # trzeba go przekazać np. poprzez stworzenie opcji 
     else:
         raise FileError("Nieprawidłowy format pliku")
 
-    dane = importer(file_name)
+    data = importer(file_name)
     update_database(data)
 
 
