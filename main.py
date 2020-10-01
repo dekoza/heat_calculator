@@ -16,6 +16,7 @@ import csv
 from typing import Dict, List
 
 from click.exceptions import FileError
+from pony.orm.core import commit, select
 from models import Material
 from pony.orm import db_session
 import numpy as np
@@ -23,6 +24,10 @@ import click
 
 import csv
 import pandas as pd
+
+
+class TooHighTempException(Exception):
+    pass
 
 
 headers = [
@@ -68,6 +73,28 @@ def create_example_input_file():
 
 @db_session
 def update_database(input_data):  # type: (List[Dict]) -> None
+    """
+    Format danych przyjmowanych przez tę funkcję:
+    [
+        {
+            "name": "Nazwa materiału",
+            "max_temp": 1200,
+            "price": 15.0,
+            "coeff_200": 3.4,
+            "coeff_400": 3.6,
+            "coeff_600": 3.6,
+            "coeff_800": 3.6,
+            "coeff_1000": 3.4,
+            "coeff_1200": None,
+            "coeff_1400": None,
+            "coeff_1600": None,
+        },
+        {...}
+
+    ]
+
+    """
+
     for entry in input_data:
         name = entry["name"]
         # zabezpieczyć przed brakiem elementu
@@ -76,7 +103,6 @@ def update_database(input_data):  # type: (List[Dict]) -> None
             db_obj.set(**entry)
         else:
             db_obj = Material(**entry)
-
 
         # tutaj możemy operować na db_obj, żeby wyliczyć współczynniki
         # kod napisany na jednym z poprzednich spotkań:
@@ -96,26 +122,26 @@ def update_database(input_data):  # type: (List[Dict]) -> None
         db_obj.coeff_a = k[0]
         db_obj.coeff_b = k[1]
         db_obj.coeff_c = k[2]
-        curve = np.poly1d(k)
-
-        # teraz wypadałoby policzyć współczynnik dla tych temperatur,
-        # które są mniejsze niż max_temp (patrz linia 79 oraz 85)
-
-        for temp in missing_temps:
-            value = (db_obj.coeff_a * temp**2) +  (db_obj.coeff_b*temp) + db_obj.coeff_c
-            setattr(db_obj, f"coeff_{temp}", value)
-        # koniec :)
 
 
 def read_csv(file_name):
-    " csv "
-    f = open(file_name.csv, 'rb')
-    dane = csv.reader(f)
+    """
+    Musi zwrócić dane w formacie akceptowanym przez funkcję `update_database`.
+    Nie musi zwracać listy, może zwracać iterator.
+    """
+    with open(file_name, "r") as f:
+        reader = csv.DictReader(f, fieldnames=headers)
+        next(reader)
+        return [o for o in reader]
+
 
 def read_excel(file_name):
     "xls / xlsx"
-    #data = pd.ExcelFile(file_name)
-    dane = pd.read_excel(file_name, sheet_name=None)
+    data = pd.read_excel(file_name, names=headers)
+    return [
+        dict(zip(data.columns, r)) for r in data.where(pd.notnull(data), None).values
+    ]
+
 
 # CLICK interface
 # https://click.palletsprojects.com/en/7.x/commands/
@@ -134,13 +160,15 @@ def example():
     create_example_input_file()
     print("Utworzono plik example.csv")
 
-@cli.command()
 
-def import_file(file_name): # trzeba go przekazać np. poprzez stworzenie opcji @cli.option(....)
+@cli.command()
+@click.argument("file_name")
+def import_file(
+    file_name,
+):
     """
     Importuje dane z pliku do bazy
     """
-    file_name = input()
 
     # rozpoznanie formatu
     if file_name.endswith(".csv"):
@@ -150,8 +178,58 @@ def import_file(file_name): # trzeba go przekazać np. poprzez stworzenie opcji 
     else:
         raise FileError("Nieprawidłowy format pliku")
 
-    dane = importer(file_name)
+    data = importer(file_name)
     update_database(data)
+    print("Program zakończył działanie.")
+
+
+@cli.command()
+@click.option("--start-temp", default=1360)
+@click.option("--end-temp", default=70)
+def calc_temps(start_temp, end_temp):
+    """
+    Oblicza zmianę temperatur
+    """
+    TEMP_START = start_temp  # inner wall temp [C]
+    TEMP_END = end_temp  # outer wall temp [C]
+    Q = 750  # initial heat flux
+    # Q = calculate_Q()
+
+    wall_config = [
+        # material name, thickness
+        ("ISO 140-0.8", 0.065),
+        ("ISO 125-0.5", 0.065),
+        ("Microporous ISO 1200", 0.06),
+    ]
+    # TODO: Wczytać te parametry z pliku!
+
+    # TODO: Dołożyć tworzenie przykładowej konfiguracji ściany (np. wall-example ?)
+
+    # główna funkcja programu
+    with db_session:
+        mat_testowy = select(m for m in Material).first()
+        if mat_testowy is None:
+            raise ValueError("Pusta baza danych!")
+
+        # TODO: Sprawdzić, czy wszystkie nazwy materiałów z konfiguracji ściany
+        # znajdują się w bazie!
+
+        temp = TEMP_START
+        for name, thickness in wall_config:
+            material = Material.get(name=name)
+            if temp > material.max_temp:
+                raise TooHighTempException(temp, name)
+
+            layer_coeff = (
+                material.coeff_a * (temp ** 2)
+                + material.coeff_b * temp
+                + material.coeff_c
+            )
+            print(f"Temperatura na warstwie {name} jest rowna {temp}")
+            temp = temp - ((thickness * Q) / layer_coeff)
+    # TODO: Sprawdzić, czy osiągnięta została temp. końcowa - jesli nie, to błąd itd.
+
+    # TODO: wygenerowanie wykresu (np. podać nazwę pliku przez parametr)
 
 
 if __name__ == "__main__":

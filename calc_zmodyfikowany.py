@@ -6,10 +6,8 @@ from pony.orm import select, db_session, commit
 import numpy as np
 
 
-class TooHighTempException(Exception):
-    pass
 
-
+@debug
 def generate_data():
     iso140_08 = Material(
         name="ISO 140-0.8",
