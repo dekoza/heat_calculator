@@ -24,7 +24,7 @@ import click
 
 import csv
 import pandas as pd
-
+import random
 
 class TooHighTempException(Exception):
     pass
@@ -182,6 +182,18 @@ def import_file(
     update_database(data)
     print("Program zakończył działanie.")
 
+# TODO: Dołożyć tworzenie przykładowej konfiguracji ściany (np. wall-example ?)
+@cli.command()
+def example_wall_config():
+    """
+    Tworzy przykładowy plik zawierajacy konfiguracje
+    """
+    accetable_thickness = np.arange(0.05, 0.5, 0.01).tolist()
+    number_of_example_layers = 3
+    example_wall_config = dict(zip(random.sample(wall_config_material, number_of_example_layers), random.sample(accetable_thickness, number_of_example_layers)))
+    print(example_wall_config)
+
+
 
 @cli.command()
 @click.option("--start-temp", default=1360)
@@ -195,15 +207,17 @@ def calc_temps(start_temp, end_temp):
     Q = 750  # initial heat flux
     # Q = calculate_Q()
 
-    wall_config = [
+    '''wall_config = [
         # material name, thickness
         ("ISO 140-0.8", 0.065),
         ("ISO 125-0.5", 0.065),
         ("Microporous ISO 1200", 0.06),
-    ]
+    ]'''
     # TODO: Wczytać te parametry z pliku!
-
-    # TODO: Dołożyć tworzenie przykładowej konfiguracji ściany (np. wall-example ?)
+    read_wall_config = pd.read_excel('wall_config.xlsx')
+    wall_config_material = read_wall_config['material'].tolist()
+    wall_config_thickness = read_wall_config['thickness'].tolist()
+    wall_config = dict(zip(wall_config_material, wall_config_thickness))
 
     # główna funkcja programu
     with db_session:
@@ -211,8 +225,8 @@ def calc_temps(start_temp, end_temp):
         if mat_testowy is None:
             raise ValueError("Pusta baza danych!")
 
-        # TODO: Sprawdzić, czy wszystkie nazwy materiałów z konfiguracji ściany
-        # znajdują się w bazie!
+        # TODO: Sprawdzić, czy wszystkie nazwy materiałów z konfiguracji ściany znajdują się w bazie!
+        # tutaj proszę o pomoc w napisaniu tego
 
         temp = TEMP_START
         for name, thickness in wall_config:
@@ -228,8 +242,20 @@ def calc_temps(start_temp, end_temp):
             print(f"Temperatura na warstwie {name} jest rowna {temp}")
             temp = temp - ((thickness * Q) / layer_coeff)
     # TODO: Sprawdzić, czy osiągnięta została temp. końcowa - jesli nie, to błąd itd.
+    if temp > end_temp:
+        print('Wszystko okej, obliczenia wykonane poprawnie')
+    raise ValueError(f"Niepoprawnie przepriwadzone obliczenia temp koncowa {temp}")
 
     # TODO: wygenerowanie wykresu (np. podać nazwę pliku przez parametr)
+
+@cli.command()
+@click.argument("pdf_name")
+def generate_plot(pdf_name):
+    """
+    Generuje wykres i zapisuje do pdf
+    """
+    plot = plt.plot(x, y)
+    plt.savefig(f"{pdf_name}.pdf")
 
 
 if __name__ == "__main__":
