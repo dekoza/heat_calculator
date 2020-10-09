@@ -26,6 +26,7 @@ import csv
 import pandas as pd
 import random
 
+
 class TooHighTempException(Exception):
     pass
 
@@ -182,17 +183,32 @@ def import_file(
     update_database(data)
     print("Program zakończył działanie.")
 
+
 # TODO: Dołożyć tworzenie przykładowej konfiguracji ściany (np. wall-example ?)
 @cli.command()
 def example_wall_config():
     """
     Tworzy przykładowy plik zawierajacy konfiguracje
     """
+
+    """wall_config = [
+        # material name, thickness
+        ("ISO 140-0.8", 0.065),
+        ("ISO 125-0.5", 0.065),
+        ("Microporous ISO 1200", 0.06),
+    ]"""
+
+    # TODO: do poprawy - niech tworzy plik z przykładową konfiguracją.
+
     accetable_thickness = np.arange(0.05, 0.5, 0.01).tolist()
     number_of_example_layers = 3
-    example_wall_config = dict(zip(random.sample(wall_config_material, number_of_example_layers), random.sample(accetable_thickness, number_of_example_layers)))
+    example_wall_config = dict(
+        zip(
+            random.sample(wall_config_material, number_of_example_layers),
+            random.sample(accetable_thickness, number_of_example_layers),
+        )
+    )
     print(example_wall_config)
-
 
 
 @cli.command()
@@ -207,26 +223,16 @@ def calc_temps(start_temp, end_temp):
     Q = 750  # initial heat flux
     # Q = calculate_Q()
 
-    '''wall_config = [
-        # material name, thickness
-        ("ISO 140-0.8", 0.065),
-        ("ISO 125-0.5", 0.065),
-        ("Microporous ISO 1200", 0.06),
-    ]'''
-    # TODO: Wczytać te parametry z pliku!
-    read_wall_config = pd.read_excel('wall_config.xlsx')
-    wall_config_material = read_wall_config['material'].tolist()
-    wall_config_thickness = read_wall_config['thickness'].tolist()
+    read_wall_config = pd.read_excel("wall_config.xlsx")
+    wall_config_material = read_wall_config["material"].tolist()
+    wall_config_thickness = read_wall_config["thickness"].tolist()
     wall_config = dict(zip(wall_config_material, wall_config_thickness))
 
     # główna funkcja programu
     with db_session:
-        mat_testowy = select(m for m in Material).first()
-        if mat_testowy is None:
-            raise ValueError("Pusta baza danych!")
-
-        # TODO: Sprawdzić, czy wszystkie nazwy materiałów z konfiguracji ściany znajdują się w bazie!
-        # tutaj proszę o pomoc w napisaniu tego
+        query = Material.select(lambda m: m.name in wall_config_material)
+        if set(wall_config_material) - set(m.name for m in query):
+            raise ValueError("Nie wszystkie materiały znajdują się w bazie!")
 
         temp = TEMP_START
         for name, thickness in wall_config:
@@ -241,12 +247,12 @@ def calc_temps(start_temp, end_temp):
             )
             print(f"Temperatura na warstwie {name} jest rowna {temp}")
             temp = temp - ((thickness * Q) / layer_coeff)
-    # TODO: Sprawdzić, czy osiągnięta została temp. końcowa - jesli nie, to błąd itd.
     if temp > end_temp:
-        print('Wszystko okej, obliczenia wykonane poprawnie')
+        print("Wszystko okej, obliczenia wykonane poprawnie")
     raise ValueError(f"Niepoprawnie przepriwadzone obliczenia temp koncowa {temp}")
 
     # TODO: wygenerowanie wykresu (np. podać nazwę pliku przez parametr)
+
 
 @cli.command()
 @click.argument("pdf_name")
